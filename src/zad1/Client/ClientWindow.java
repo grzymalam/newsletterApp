@@ -1,11 +1,13 @@
 package zad1.Client;
 
 import javax.swing.*;
+import javax.swing.border.Border;
+import javax.swing.border.LineBorder;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
+
 
 public class ClientWindow extends JFrame {
     private final ClientLogicHandler clientLogicHandler;
@@ -35,10 +37,16 @@ public class ClientWindow extends JFrame {
         topicInput = new JTextArea();
         topicInput.setLineWrap(false);
         topicInput.setWrapStyleWord(false);
+
+        //borders
+        LineBorder grayBorder = new LineBorder(Color.GRAY, 1);
+        Border messageAreaBorder = BorderFactory.createTitledBorder(grayBorder, "news");
+        Border topicAreaBorder = BorderFactory.createTitledBorder(grayBorder, "topic input");
+        textArea.setBorder(messageAreaBorder);
+        topicInput.setBorder(topicAreaBorder);
         //data
         topics = new ArrayList<>();
         topicAndLatestNews = new HashMap<>();
-        clientLogicHandler = new ClientLogicHandler(textArea, topicAndLatestNews, topics);
         //gui
         mainPanel = new JPanel();
         layout = new GridBagLayout();
@@ -48,7 +56,8 @@ public class ClientWindow extends JFrame {
         constraints.fill = GridBagConstraints.BOTH;
         constraints.gridx = 0;
         constraints.gridy = 0;
-        topicsComboBox = new JComboBox<>(new String[]{"test", "test2"});
+        topicsComboBox = new JComboBox<>();
+        clientLogicHandler = new ClientLogicHandler(textArea, topicAndLatestNews, topics, topicsComboBox);
         mainPanel.add(topicsComboBox, constraints);
 
         constraints.gridx = 1;
@@ -98,6 +107,5 @@ public class ClientWindow extends JFrame {
     private void updateButtonClicked(ActionEvent e) {
         String topic = (String) topicsComboBox.getSelectedItem();
         clientLogicHandler.update(topic);
-
     }
 }

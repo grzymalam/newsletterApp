@@ -1,4 +1,4 @@
-package zad1.Client;
+package zad1.Admin;
 
 import javax.swing.*;
 import java.net.InetSocketAddress;
@@ -10,24 +10,19 @@ import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.TimerTask;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 
-public class ClientLogicHandler {
-    private final JTextArea textArea;
+public class AdminLogicHandler {
+    private final JTextArea messageArea;
+    private final JTextArea topicArea;
     private final JComboBox<String> comboBox;
-    private final HashMap<String, String> topicsAndLastNews;
-    private final ArrayList<String> topics;
     private SocketChannel socketChannel;
 
-    public ClientLogicHandler(JTextArea textArea, HashMap<String, String> topicsAndLastNews, ArrayList<String> topics, JComboBox<String> comboBox) {
-        this.textArea = textArea;
-        this.topicsAndLastNews = topicsAndLastNews;
-        this.topics = topics;
+    public AdminLogicHandler(JTextArea messageArea, JTextArea topicArea, JComboBox<String> comboBox) {
+        this.messageArea = messageArea;
+        this.topicArea = topicArea;
         this.comboBox = comboBox;
         reconnect();
+
     }
 
     private ByteBuffer buffer = ByteBuffer.allocate(1024);
@@ -35,9 +30,8 @@ public class ClientLogicHandler {
     private final Charset charset = Charset.forName("ISO-8859-2");
     public boolean getMessage() {
         String message = "";
-
         if (!socketChannel.isConnected()) {
-            System.out.println("Client disconnected");
+            System.out.println("Admin disconnected");
             JOptionPane.showMessageDialog(null, "Connection lost");
             return false;
         }
@@ -47,14 +41,15 @@ public class ClientLogicHandler {
                 int read = socketChannel.read(buffer);
                 if (read == 0) {
                     continue;
-                }else if (read == -1) {
+                }
+                if (read == -1) {
                     JOptionPane.showMessageDialog(null, "Connection lost. (Could not read)");
                     break;
                 } else {
                     buffer.flip();
                     charBuffer = charset.decode(buffer);
                     message = charBuffer.toString();
-                    System.out.println("Client received: " + message);
+                    System.out.println("Admin received: " + message);
                     charBuffer.clear();
 
                     ArrayList<String> messageParts = new ArrayList<>(Arrays.asList(message.split("&")));
@@ -67,73 +62,85 @@ public class ClientLogicHandler {
                         System.out.println("returning false");
                         return false;
                     }
-                    else if (messageParts.get(0).equals("update")) {
-                        System.out.println("updating");
+                    else if (messageParts.get(0).equals("get")) {
+                        System.out.println("getting topics");
                         if (messageParts.get(2).equals("null")){
-                            JOptionPane.showMessageDialog(null, "No news for this topic");
-                            return false;
-                        }else if (messageParts.get(2).equals("deleted")){
-                            JOptionPane.showMessageDialog(null, "Topic deleted");
-                            comboBox.removeItem(messageParts.get(1));
+                            JOptionPane.showMessageDialog(null, "No topics loaded");
                             return false;
                         }
-                        if(messageParts.size() == 5) {
-                            String newTopicName = messageParts.get(4);
-                            comboBox.removeItem(messageParts.get(1));
-                            comboBox.addItem(newTopicName);
-                            JOptionPane.showMessageDialog(null, "The topics name has been changed to " + newTopicName);
+                        for(int i = 1; i < messageParts.size(); i++) {
+                            comboBox.addItem(messageParts.get(i));
                         }
-                        topicsAndLastNews.put(messageParts.get(1), messageParts.get(2));
-                        textArea.setText(messageParts.get(2));
                         return true;
                     } else {
-                        textArea.setText("error");
+                        messageArea.setText("error");
                         return false;
                     }
                 }
             } catch (Exception e) {
-                JOptionPane.showMessageDialog(null, "Error reading from server");
+                messageArea.setText("Unknown error");
                 reconnect();
             }
+            return false;
         }
         return false;
     }
 
-    public void subscribe(String topic) {
+    public void sendNews(String topic, String news) {
         if (topic.equals("")) {
             JOptionPane.showMessageDialog(null, "Topic cannot be empty");
         }
-        sendMessage("subscribe&" + topic);
+        if(news.equals("")) {
+            JOptionPane.showMessageDialog(null, "News cannot be empty");
+        }
+        sendMessage("news&" + topic + "&" + news);
         if (!getMessage()) {
-            JOptionPane.showMessageDialog(null, "Subscription failed");
+            JOptionPane.showMessageDialog(null, "Sending news failed");
         }else{
-            topics.add(topic);
+            JOptionPane.showMessageDialog(null, "Sending news successful");
+        }
+    }
+
+    public void add(String topic) {
+        sendMessage("add&" + topic);
+        if (!getMessage()) {
+            JOptionPane.showMessageDialog(null, "Addition failed");
+        }else{
             comboBox.addItem(topic);
-            JOptionPane.showMessageDialog(null, "Subscription successful");
+            JOptionPane.showMessageDialog(null, "Addition successful");
         }
     }
 
-    public void unsubscribe(String topic) {
-        sendMessage("unsubscribe&" + topic);
+    public void delete(String topic){
+        sendMessage("delete&" + topic);
         if (!getMessage()) {
-            JOptionPane.showMessageDialog(null, "Unsubscription failed");
+            JOptionPane.showMessageDialog(null, "Deletion failed");
         }else{
-            topics.remove(topic);
-            comboBox.removeItem(topic);
-            JOptionPane.showMessageDialog(null, "Unsubscription successful");
+            JOptionPane.showMessageDialog(null, "Deletion successful");
         }
+        getMessage();
     }
 
-    public void update(String topic){
-        sendMessage("update&" + topic);
+    public void change(String topic, String newTopic) {
+        sendMessage("change&" + topic + "&" + newTopic);
         if (!getMessage()) {
-            JOptionPane.showMessageDialog(null, "Update failed");
+            JOptionPane.showMessageDialog(null, "Changing failed");
+        }else{
+            comboBox.removeItem(topic);
+            comboBox.addItem(newTopic);
+            JOptionPane.showMessageDialog(null, "Changing successful");
         }
     }
 
+    public void get(){
+        sendMessage("get");
+        if (!getMessage()) {
+            JOptionPane.showMessageDialog(null, "Getting topics failed");
+        }
+    }
     public void sendMessage(String message) {
-        System.out.println("Client sending: " + message);
-        ByteBuffer msg = charset.encode(CharBuffer.wrap("client&" + message + '\n'));
+        System.out.println("Admin sending: " + message);
+        ByteBuffer msg = charset.encode(CharBuffer.wrap("admin&" + message + '\n'));
         while(true) {
             try {
                 socketChannel.write(msg);
@@ -162,7 +169,7 @@ public class ClientLogicHandler {
                     socketChannel.connect(address);
                     while (!socketChannel.finishConnect()) {
                     }
-                    System.out.println("Client connected");
+                    System.out.println("Admin connected");
                     return;
                 } catch (UnknownHostException e) {
                     JOptionPane.showMessageDialog(null, "Unknown host");
